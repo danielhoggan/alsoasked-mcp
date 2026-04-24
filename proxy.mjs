@@ -1,5 +1,4 @@
-import express from 'express';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import { createServer, request as httpRequest } from 'http';
 import { spawn } from 'child_process';
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
@@ -36,35 +35,23 @@ gw.on('exit', (code) => {
 
 await new Promise((r) => setTimeout(r, 2000));
 
-const app = express();
-
-app.use((req, _res, next) => {
-  console.log(
-    `${req.method} ${req.url} bearer=${!!req.headers.authorization} xkey=${!!req.headers['x-api-key']}`
-  );
-  next();
-});
-
-app.get('/healthz', (_req, res) => res.send('ok'));
-
-app.use((req, res, next) => {
+function isAuthorized(req) {
   const xKey = req.headers['x-api-key'];
   const auth = req.headers['authorization'] || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  return xKey === API_KEY || bearer === API_KEY;
+}
 
-  if (xKey === API_KEY || bearer === API_KEY) return next();
-  return res.status(401).json({ error: 'Unauthorized' });
-});
+const server = createServer((req, res) => {
+  const url = req.url || '/';
+  console.log(
+    `${req.method} ${url} bearer=${!!req.headers.authorization} xkey=${!!req.headers['x-api-key']}`
+  );
 
-app.use(
-  '/',
-  createProxyMiddleware({
-    target: `http://127.0.0.1:${INTERNAL_PORT}`,
-    changeOrigin: true,
-    ws: true,
-  })
-);
+  if (url === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    return;
+  }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Auth proxy on 0.0.0.0:${PORT} -> supergateway on ${INTERNAL_PORT} (public: ${PUBLIC_URL})`);
-});
+  const isMessag
