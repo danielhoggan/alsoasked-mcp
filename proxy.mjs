@@ -1,0 +1,49 @@
+import express from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import { spawn } from 'child_process';
+
+const PORT = parseInt(process.env.PORT || '8000', 10);
+const INTERNAL_PORT = 8001;
+const API_KEY = process.env.PROXY_API_KEY;
+
+if (!API_KEY) {
+  console.error('PROXY_API_KEY env var is required');
+  process.exit(1);
+}
+
+const gw = spawn(
+  'supergateway',
+  ['--stdio', 'node dist/index.js', '--port', String(INTERNAL_PORT)],
+  { stdio: 'inherit', shell: true, env: process.env }
+);
+
+gw.on('exit', (code) => {
+  console.error(`supergateway exited with code ${code}`);
+  process.exit(1);
+});
+
+await new Promise((r) => setTimeout(r, 2000));
+
+const app = express();
+
+app.get('/healthz', (_req, res) => res.send('ok'));
+
+app.use((req, res, next) => {
+  if (req.headers['x-api-key'] !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+});
+
+app.use(
+  '/',
+  createProxyMiddleware({
+    target: `http://127.0.0.1:${INTERNAL_PORT}`,
+    changeOrigin: true,
+    ws: true,
+  })
+);
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Auth proxy on 0.0.0.0:${PORT} -> supergateway on ${INTERNAL_PORT}`);
+});
