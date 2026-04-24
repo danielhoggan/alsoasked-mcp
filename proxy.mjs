@@ -30,7 +30,7 @@ const gw = spawn(
 );
 
 gw.on('exit', (code) => {
-  console.error(`supergateway exited with code ${code}`);
+  console.error(`mcp-proxy exited with code ${code}`);
   process.exit(1);
 });
 
@@ -72,7 +72,7 @@ const server = createServer((req, res) => {
     return;
   }
 
-  const isMessage = url.startsWith('/message?');
+  const isMessage = url.startsWith('/messages/') || url.startsWith('/message?');
 
   if (!isMessage && !isAuthorized(req)) {
     res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -115,6 +115,6 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(
-    `Auth proxy on 0.0.0.0:${PORT} -> supergateway on ${INTERNAL_PORT} (public: ${PUBLIC_URL})`
+    `Auth proxy on 0.0.0.0:${PORT} -> mcp-proxy on ${INTERNAL_PORT} (public: ${PUBLIC_URL})`
   );
 });
