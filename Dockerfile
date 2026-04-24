@@ -6,8 +6,9 @@ COPY . .
 
 RUN npm ci --ignore-scripts
 RUN npm run build
-RUN npm install -g mcp-proxy
+RUN npm install -g supergateway
+RUN npm install express@^4 http-proxy-middleware@^3
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "mcp-proxy --port ${PORT:-8000} --apiKey ${PROXY_API_KEY} -- node dist/index.js"]
+CMD ["node", "proxy.mjs"]
