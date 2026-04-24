@@ -26,13 +26,22 @@ await new Promise((r) => setTimeout(r, 2000));
 
 const app = express();
 
+app.use((req, _res, next) => {
+  console.log(
+    `${req.method} ${req.url} bearer=${!!req.headers.authorization} xkey=${!!req.headers['x-api-key']}`
+  );
+  next();
+});
+
 app.get('/healthz', (_req, res) => res.send('ok'));
 
 app.use((req, res, next) => {
-  if (req.headers['x-api-key'] !== API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
+  const xKey = req.headers['x-api-key'];
+  const auth = req.headers['authorization'] || '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+
+  if (xKey === API_KEY || bearer === API_KEY) return next();
+  return res.status(401).json({ error: 'Unauthorized' });
 });
 
 app.use(
