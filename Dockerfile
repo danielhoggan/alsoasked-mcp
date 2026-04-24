@@ -1,13 +1,18 @@
 FROM node:20-slim
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip pipx && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pipx install mcp-proxy
+ENV PATH="/root/.local/bin:${PATH}"
+
 WORKDIR /app
 
 COPY . .
 
 RUN npm ci --ignore-scripts
 RUN npm run build
-RUN npm install -g supergateway
-RUN npm install express@^4 http-proxy-middleware@^3
 
 EXPOSE 8000
 
