@@ -11,7 +11,6 @@ if (!API_KEY) {
   console.error('PROXY_API_KEY env var is required');
   process.exit(1);
 }
-
 if (!PUBLIC_URL) {
   console.error('PUBLIC_URL or RAILWAY_PUBLIC_DOMAIN must be set');
   process.exit(1);
@@ -34,6 +33,23 @@ gw.on('exit', (code) => {
 });
 
 await new Promise((r) => setTimeout(r, 2000));
+
+const HOP_BY_HOP = new Set([
+  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+  'te', 'trailer', 'transfer-encoding', 'upgrade',
+]);
+
+function sanitizeHeaders(incoming) {
+  const result = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key.startsWith(':')) continue;
+    if (HOP_BY_HOP.has(key.toLowerCase())) continue;
+    if (value === undefined || value === null) continue;
+    result[key] = value;
+  }
+  result.host = `127.0.0.1:${INTERNAL_PORT}`;
+  return result;
+}
 
 function isAuthorized(req) {
   const xKey = req.headers['x-api-key'];
@@ -62,21 +78,27 @@ const server = createServer((req, res) => {
     return;
   }
 
-  const options = {
-    hostname: '127.0.0.1',
-    port: INTERNAL_PORT,
-    path: url,
-    method: req.method,
-    headers: { ...req.headers, host: `127.0.0.1:${INTERNAL_PORT}` },
-  };
-
-  const proxyReq = httpRequest(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-    proxyRes.pipe(res);
-  });
+  let proxyReq;
+  try {
+    proxyReq = httpRequest({
+      hostname: '127.0.0.1',
+      port: INTERNAL_PORT,
+      path: url,
+      method: req.method,
+      headers: sanitizeHeaders(req.headers),
+    }, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      proxyRes.pipe(res);
+    });
+  } catch (err) {
+    console.error(`httpRequest threw synchronously on ${req.method} ${url}:`, err.code, err.message);
+    res.writeHead(502, { 'Content-Type': 'text/plain' });
+    res.end('Bad gateway (sync)');
+    return;
+  }
 
   proxyReq.on('error', (err) => {
-    console.error('Proxy error:', err.message);
+    console.error(`Proxy error on ${req.method} ${url}:`, err.code, err.message);
     if (!res.headersSent) {
       res.writeHead(502, { 'Content-Type': 'text/plain' });
       res.end('Bad gateway');
@@ -85,6 +107,7 @@ const server = createServer((req, res) => {
     }
   });
 
+  req.on('aborted', () => proxyReq.destroy());
   req.pipe(proxyReq);
 });
 
