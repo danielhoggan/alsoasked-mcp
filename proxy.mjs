@@ -54,4 +54,42 @@ const server = createServer((req, res) => {
     return;
   }
 
-  const isMessag
+  const isMessage = url.startsWith('/message?');
+
+  if (!isMessage && !isAuthorized(req)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  const options = {
+    hostname: '127.0.0.1',
+    port: INTERNAL_PORT,
+    path: url,
+    method: req.method,
+    headers: { ...req.headers, host: `127.0.0.1:${INTERNAL_PORT}` },
+  };
+
+  const proxyReq = httpRequest(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('Proxy error:', err.message);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'text/plain' });
+      res.end('Bad gateway');
+    } else {
+      res.destroy();
+    }
+  });
+
+  req.pipe(proxyReq);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(
+    `Auth proxy on 0.0.0.0:${PORT} -> supergateway on ${INTERNAL_PORT} (public: ${PUBLIC_URL})`
+  );
+});
