@@ -17,14 +17,16 @@ if (!PUBLIC_URL) {
 }
 
 const gw = spawn(
-  'supergateway',
+  'mcp-proxy',
   [
-    '--stdio', 'node dist/index.js',
     '--port', String(INTERNAL_PORT),
-    '--baseUrl', PUBLIC_URL,
-    '--cors',
+    '--host', '127.0.0.1',
+    '--pass-environment',
+    '--allow-origin', '*',
+    '--',
+    'node', 'dist/index.js',
   ],
-  { stdio: 'inherit', shell: true, env: process.env }
+  { stdio: 'inherit', env: process.env }
 );
 
 gw.on('exit', (code) => {
