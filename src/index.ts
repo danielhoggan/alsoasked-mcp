@@ -87,7 +87,7 @@ class AlsoAskedMCPServer {
     };
 
     console.error(`Making API request to: ${url}`);
-    console.error(`X-Api-Key header: ${this.apiKey.substring(0, 10)}...`);
+    console.error(`X-Api-Key header: ${this.apiKey ? 'set' : 'MISSING'}`);
 
     try {
       const response = await fetch(url, {
